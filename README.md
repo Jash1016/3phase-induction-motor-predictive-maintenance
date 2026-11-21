@@ -30,6 +30,8 @@ Real-time embedded condition monitoring, multi-fault classification, and automat
 2. Create a local virtual COM bridge (e.g., `COM1 <-> COM2`) and assign one port to `P1` (`COMPIM` at `9600 baud`) in Proteus.
 3. Click **Play** in Proteus, open `Dashboard_WebSerial/dashboard.html` in Chrome, Edge, or Brave, click **Connect Serial Port**, and select the paired COM port.
 
-![3-Phase Motor Simulation](Documentation/circuit.png)
-![3-Phase Motor Simulation](Documentation/phasea.png)
-![3-Phase Motor Simulation](Documentation/dashboard.png)
+![3-Phase Motor Equivalent Circuit](documentation/circuit.png)
+![Phase A Simulation & Fault Injection](documentation/phasea.png)
+![Live WebSerial Telemetry Dashboard](documentation/dashboard.png)
+
+📄 **[Read the Full Project Documentation (PDF)](documentation/induction.pdf)**
