@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3-Phase Induction Motor Predictive Maintenance Dashboard</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --panel: #111827;
+      --panel-border: #1f2937;
+      --text: #f3f4f6;
+      --muted: #9ca3af;
+      --green: #10b981;
+      --green-bg: rgba(16, 185, 129, 0.14);
+      --amber: #f59e0b;
+      --amber-bg: rgba(245, 158, 11, 0.16);
+      --red: #ef4444;
+      --red-bg: rgba(239, 68, 68, 0.16);
+      --blue: #3b82f6;
+      --cyan: #06b6d4;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 20px;
+      line-height: 1.4;
+    }
+
+    .container { max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+
+    /* Header */
+    header {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 16px 22px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+    }
+    .title-block h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: 0.2px; }
+    .title-block p { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
+
+    .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .conn-pill {
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: rgba(156, 163, 175, 0.15);
+      color: var(--muted);
+      border: 1px solid rgba(156, 163, 175, 0.3);
+    }
+    .conn-pill.connected {
+      background: var(--green-bg);
+      color: var(--green);
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 15px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    button:hover { opacity: 0.9; }
+    button:active { transform: scale(0.98); }
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-reset { background: var(--amber); color: #111827; }
+    .btn-secondary { background: #1f2937; color: var(--text); border: 1px solid #374151; }
+
+    /* Status Banner */
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    @media (max-width: 900px) { .status-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 16px 18px;
+    }
+    .stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); }
+    .stat-value { font-size: 1.35rem; font-weight: 700; margin-top: 6px; display: flex; align-items: center; gap: 8px; }
+    .stat-sub { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      font-weight: 700;
+    }
+    .badge-healthy { background: var(--green-bg); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.35); }
+    .badge-observing { background: var(--amber-bg); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.4); }
+    .badge-tripped { background: var(--red-bg); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.45); }
+
+    /* Phase Current Cards */
+    .phase-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    @media (max-width: 800px) { .phase-grid { grid-template-columns: 1fr; } }
+
+    .phase-card {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 18px;
+    }
+    .phase-header { display: flex; justify-content: space-between; align-items: center; }
+    .phase-title { font-size: 0.92rem; font-weight: 600; }
+    .phase-pin { font-size: 0.75rem; color: var(--muted); background: #1f2937; padding: 2px 8px; border-radius: 4px; }
+    .phase-reading { font-size: 2.1rem; font-weight: 800; margin: 10px 0; font-variant-numeric: tabular-nums; }
+    .bar-track { width: 100%; height: 10px; background: #1f2937; border-radius: 999px; overflow: hidden; }
+    .bar-fill { height: 100%; width: 0%; transition: width 0.25s ease, background-color 0.25s ease; border-radius: 999px; }
+
+    /* Main Content Split: Chart + Fault Matrix */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1.65fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 1000px) { .main-grid { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 18px;
+    }
+    .panel-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .legend { display: flex; gap: 14px; font-size: 0.78rem; color: var(--muted); }
+    .legend span { display: flex; align-items: center; gap: 5px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+    canvas { width: 100%; height: 260px; display: block; background: #090e1a; border-radius: 8px; border: 1px solid #1e293b; }
+
+    /* Fault Matrix */
+    .fault-list { display: flex; flex-direction: column; gap: 10px; }
+    .fault-item {
+      padding: 11px 14px;
+      border-radius: 8px;
+      background: #0d1424;
+      border: 1px solid #1e293b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.2s ease;
+    }
+    .fault-item.active {
+      background: var(--red-bg);
+      border-color: var(--red);
+    }
+    .fault-name { font-size: 0.88rem; font-weight: 700; }
+    .fault-desc { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+    .fault-tag { font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 4px; background: #1f2937; color: var(--muted); }
+    .fault-item.active .fault-tag { background: var(--red); color: #fff; }
+
+    /* Event Log */
+    .log-box {
+      max-height: 190px;
+      overflow-y: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      background: #090e1a;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .log-entry { padding: 3px 6px; border-radius: 4px; }
+    .log-trip { background: var(--red-bg); color: #fca5a5; }
+    .log-reset { background: var(--green-bg); color: #6ee7b7; }
+    .log-obs { color: #fcd34d; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title-block">
+        <h1>3-Phase Induction Motor Predictive Maintenance &amp; Safety Monitor</h1>
+        <p>STM32F103C6Tx Telemetry | ACS712-30A RMS Sensing | 3-Phase NC Contactor Protection</p>
+      </div>
+      <div class="controls">
+        <span id="connStatus" class="conn-pill">DISCONNECTED</span>
+        <button id="btnConnect" class="btn-primary">Connect Serial Port</button>
+        <button id="btnReset" class="btn-reset">Reset Contactor ('r')</button>
+        <button id="btnExport" class="btn-secondary">Export CSV</button>
+      </div>
+    </header>
+
+    <section class="status-grid">
+      <div class="stat-card">
+        <div class="stat-label">System Protection State</div>
+        <div class="stat-value"><span id="sysStateBadge" class="badge badge-healthy">WAITING</span></div>
+        <div class="stat-sub" id="obsSub">Awaiting serial stream @ 9600 baud</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Detected Fault Signature</div>
+        <div class="stat-value" id="activeFaultText">NONE</div>
+        <div class="stat-sub" id="faultMechanism">Balanced 3-phase operation</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">3-Phase Safety Contactor</div>
+        <div class="stat-value"><span id="contactorBadge" class="badge badge-healthy">CLOSED</span></div>
+        <div class="stat-sub">PB0 Gate Drive &rarr; NC Relay Coils</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Phase A / Reference Ratio</div>
+        <div class="stat-value" id="ratioText">100.0%</div>
+        <div class="stat-sub" id="refCurrentText">I_ref (Avg B,C): 0.00 A</div>
+      </div>
+    </section>
+
+    <section class="phase-grid">
+      <div class="phase-card">
+        <div class="phase-header">
+          <span class="phase-title" style="color:#f87171;">Phase A Current (Ia)</span>
+          <span class="phase-pin">PA0 / ADC1_CH0</span>
+        </div>
+        <div class="phase-reading" id="iaVal">0.00 A</div>
+        <div class="bar-track"><div id="iaBar" class="bar-fill" style="background:#ef4444;"></div></div>
+      </div>
+      <div class="phase-card">
+        <div class="phase-header">
+          <span class="phase-title" style="color:#fbbf24;">Phase B Current (Ib)</span>
+          <span class="phase-pin">PA1 / ADC1_CH1</span>
+        </div>
+        <div class="phase-reading" id="ibVal">0.00 A</div>
+        <div class="bar-track"><div id="ibBar" class="bar-fill" style="background:#f59e0b;"></div></div>
+      </div>
+      <div class="phase-card">
+        <div class="phase-header">
+          <span class="phase-title" style="color:#38bdf8;">Phase C Current (Ic)</span>
+          <span class="phase-pin">PA2 / ADC1_CH2</span>
+        </div>
+        <div class="phase-reading" id="icVal">0.00 A</div>
+        <div class="bar-track"><div id="icBar" class="bar-fill" style="background:#06b6d4;"></div></div>
+      </div>
+    </section>
+
+    <section class="main-grid">
+      <div class="panel">
+        <div class="panel-title">
+          <span>Live 3-Phase RMS Current Trend (Amperes)</span>
+          <div class="legend">
+            <span><i class="dot" style="background:#ef4444;"></i>Ia</span>
+            <span><i class="dot" style="background:#f59e0b;"></i>Ib</span>
+            <span><i class="dot" style="background:#06b6d4;"></i>Ic</span>
+          </div>
+        </div>
+        <canvas id="trendChart" width="760" height="260"></canvas>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title"><span>Fault Classification Matrix</span></div>
+        <div class="fault-list">
+          <div class="fault-item" id="card-SINGLE_PHASING">
+            <div>
+              <div class="fault-name">1. Single-Phasing</div>
+              <div class="fault-desc">Ia &lt; 20% of I_ref (Open supply line)</div>
+            </div>
+            <span class="fault-tag">NORMAL</span>
+          </div>
+          <div class="fault-item" id="card-ROTOR_BAR">
+            <div>
+              <div class="fault-name">2. Broken Rotor Bar</div>
+              <div class="fault-desc">Ia drops to 20%&ndash;91% of I_ref (R_BRB = 22 &Omega;)</div>
+            </div>
+            <span class="fault-tag">NORMAL</span>
+          </div>
+          <div class="fault-item" id="card-ECCENTRICITY">
+            <div>
+              <div class="fault-name">3. Bearing Air-Gap Eccentricity</div>
+              <div class="fault-desc">Ia &gt; 135% of I_ref (L10 = 45 mH)</div>
+            </div>
+            <span class="fault-tag">NORMAL</span>
+          </div>
+          <div class="fault-item" id="card-OVERLOAD_3PH">
+            <div>
+              <div class="fault-name">4. 3-Phase Mechanical Overload</div>
+              <div class="fault-desc">Ia, Ib, Ic &gt; 15 A balanced (s = 0.3)</div>
+            </div>
+            <span class="fault-tag">NORMAL</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">
+        <span>Live Telemetry &amp; Protection Event Log</span>
+        <button id="btnClearLog" class="btn-secondary" style="padding:4px 10px;font-size:0.75rem;">Clear Log</button>
+      </div>
+      <div class="log-box" id="logBox"></div>
+    </section>
+  </div>
+
+  <script>
+    let port = null;
+    let writer = null;
+    let keepReading = false;
+    const maxPoints = 60;
+    const history = { ia: [], ib: [], ic: [] };
+    const csvRows = [["Timestamp", "Ia_A", "Ib_A", "Ic_A", "State", "Fault", "Contactor"]];
+
+    const faultDescriptions = {
+      NONE: "Balanced 3-phase operation",
+      NO_SUPPLY: "Contactor open or 3-phase supply disconnected",
+      SINGLE_PHASING: "Phase A supply loss detected (Ia ~ 0 A)",
+      ROTOR_BAR: "Asymmetric rotor impedance increase on Phase A",
+      ECCENTRICITY: "Localized magnetizing current surge on Phase A",
+      OVERLOAD_3PH: "Symmetrical 3-phase overcurrent above 15 A"
+    };
+
+    const faultKeys = ["SINGLE_PHASING", "ROTOR_BAR", "ECCENTRICITY", "OVERLOAD_3PH"];
+
+    function appendLog(text, cls = "") {
+      const box = document.getElementById("logBox");
+      const div = document.createElement("div");
+      const ts = new Date().toLocaleTimeString();
+      div.className = "log-entry " + cls;
+      div.textContent = `[${ts}] ${text}`;
+      box.appendChild(div);
+      if (box.children.length > 120) box.removeChild(box.firstChild);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function updateFaultCards(activeFault) {
+      faultKeys.forEach((key) => {
+        const el = document.getElementById("card-" + key);
+        const tag = el.querySelector(".fault-tag");
+        if (key === activeFault) {
+          el.classList.add("active");
+          tag.textContent = "DETECTED";
+        } else {
+          el.classList.remove("active");
+          tag.textContent = "NORMAL";
+        }
+      });
+    }
+
+    function drawChart() {
+      const canvas = document.getElementById("trendChart");
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width;
+      const h = canvas.height;
+      const padL = 44, padR = 14, padT = 16, padB = 24;
+      const plotW = w - padL - padR;
+      const plotH = h - padT - padB;
+      const maxAmp = 36;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Grid lines
+      ctx.strokeStyle = "#1e293b";
+      ctx.fillStyle = "#9ca3af";
+      ctx.font = "11px sans-serif";
+      ctx.lineWidth = 1;
+      for (let a = 0; a <= maxAmp; a += 6) {
+        const y = padT + plotH - (a / maxAmp) * plotH;
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(w - padR, y);
+        ctx.stroke();
+        ctx.fillText(a + "A", 8, y + 4);
+      }
+
+      // 15A Overload threshold line
+      const yThresh = padT + plotH - (15 / maxAmp) * plotH;
+      ctx.save();
+      ctx.setLineDash([5, 5]);
+      ctx.strokeStyle = "rgba(239, 68, 68, 0.5)";
+      ctx.beginPath();
+      ctx.moveTo(padL, yThresh);
+      ctx.lineTo(w - padR, yThresh);
+      ctx.stroke();
+      ctx.restore();
+
+      const drawSeries = (arr, color) => {
+        if (arr.length < 2) return;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        arr.forEach((val, idx) => {
+          const x = padL + (idx / (maxPoints - 1)) * plotW;
+          const clamped = Math.min(Math.max(val, 0), maxAmp);
+          const y = padT + plotH - (clamped / maxAmp) * plotH;
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      };
+
+      drawSeries(history.ic, "#06b6d4");
+      drawSeries(history.ib, "#f59e0b");
+      drawSeries(history.ia, "#ef4444");
+    }
+
+    function handlePacket(line) {
+      let data;
+      try {
+        data = JSON.parse(line);
+      } catch {
+        appendLog(line);
+        return;
+      }
+
+      if (data.event) {
+        if (data.event === "TRIP") {
+          appendLog(`SAFETY TRIP CONFIRMED -> Fault: ${data.f} | Contactor: ${data.c}`, "log-trip");
+        } else if (data.event === "RESET") {
+          appendLog(`MANUAL RESET -> Contactor: ${data.c} | State: ${data.s}`, "log-reset");
+        } else {
+          appendLog(`EVENT [${data.event}]: ${data.msg || JSON.stringify(data)}`);
+        }
+        return;
+      }
+
+      if (typeof data.ia === "number") {
+        const ia = data.ia, ib = data.ib, ic = data.ic;
+        const state = data.s || "HEALTHY";
+        const fault = data.f || "NONE";
+        const contactor = data.c || "CLOSED";
+
+        document.getElementById("iaVal").textContent = ia.toFixed(2) + " A";
+        document.getElementById("ibVal").textContent = ib.toFixed(2) + " A";
+        document.getElementById("icVal").textContent = ic.toFixed(2) + " A";
+
+        document.getElementById("iaBar").style.width = Math.min((ia / 35) * 100, 100) + "%";
+        document.getElementById("ibBar").style.width = Math.min((ib / 35) * 100, 100) + "%";
+        document.getElementById("icBar").style.width = Math.min((ic / 35) * 100, 100) + "%";
+
+        const iRef = 0.5 * (ib + ic);
+        const ratio = iRef > 0.2 ? ((ia / iRef) * 100).toFixed(1) + "%" : "0.0%";
+        document.getElementById("ratioText").textContent = ratio;
+        document.getElementById("refCurrentText").textContent = `I_ref (Avg B,C): ${iRef.toFixed(2)} A`;
+
+        const stateBadge = document.getElementById("sysStateBadge");
+        stateBadge.textContent = state;
+        stateBadge.className = "badge " + (
+          state === "TRIPPED" ? "badge-tripped" :
+          state === "OBSERVING" ? "badge-observing" : "badge-healthy"
+        );
+        document.getElementById("obsSub").textContent =
+          state === "OBSERVING" ? "Verifying fault persistence (1.5 s window)" :
+          state === "TRIPPED" ? "Latched OFF — Clear fault & click Reset" : "Normal continuous monitoring";
+
+        document.getElementById("activeFaultText").textContent = fault;
+        document.getElementById("faultMechanism").textContent = faultDescriptions[fault] || "";
+
+        const cBadge = document.getElementById("contactorBadge");
+        cBadge.textContent = contactor;
+        cBadge.className = "badge " + (contactor === "OPEN" ? "badge-tripped" : "badge-healthy");
+
+        updateFaultCards(fault);
+
+        history.ia.push(ia);
+        history.ib.push(ib);
+        history.ic.push(ic);
+        if (history.ia.length > maxPoints) {
+          history.ia.shift();
+          history.ib.shift();
+          history.ic.shift();
+        }
+        drawChart();
+
+        const ts = new Date().toISOString();
+        csvRows.push([ts, ia.toFixed(2), ib.toFixed(2), ic.toFixed(2), state, fault, contactor]);
+
+        const cls = state === "TRIPPED" ? "log-trip" : state === "OBSERVING" ? "log-obs" : "";
+        appendLog(`Ia=${ia.toFixed(2)}A | Ib=${ib.toFixed(2)}A | Ic=${ic.toFixed(2)}A | State=${state} | Fault=${fault} | Contactor=${contactor}`, cls);
+      }
+    }
+
+    async function connectSerial() {
+      if (!("serial" in navigator)) {
+        alert("WebSerial API is not supported in this browser. Please open this file in Google Chrome or Microsoft Edge.");
+        return;
+      }
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+
+        const statusEl = document.getElementById("connStatus");
+        statusEl.textContent = "CONNECTED @ 9600 BAUD";
+        statusEl.classList.add("connected");
+        document.getElementById("btnConnect").textContent = "Connected";
+        appendLog("Serial port opened at 9600 baud.", "log-reset");
+
+        const encoder = new TextEncoderStream();
+        encoder.readable.pipeTo(port.writable);
+        writer = encoder.writable.getWriter();
+
+        const decoder = new TextDecoderStream();
+        port.readable.pipeTo(decoder.writable);
+        const reader = decoder.readable.getReader();
+
+        keepReading = true;
+        let buffer = "";
+        while (keepReading) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) {
+            buffer += value;
+            const lines = buffer.split(/\r?\n/);
+            buffer = lines.pop();
+            lines.forEach((l) => { if (l.trim()) handlePacket(l.trim()); });
+          }
+        }
+      } catch (err) {
+        appendLog("Serial connection error: " + err.message, "log-trip");
+      }
+    }
+
+    async function sendReset() {
+      if (!writer) {
+        appendLog("Cannot send reset: Serial port is not connected.", "log-trip");
+        return;
+      }
+      await writer.write("r");
+      appendLog("Sent reset command ('r') to STM32...", "log-obs");
+    }
+
+    function exportCSV() {
+      const csvContent = csvRows.map((r) => r.join(",")).join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "motor_fault_telemetry.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    document.getElementById("btnConnect").addEventListener("click", connectSerial);
+    document.getElementById("btnReset").addEventListener("click", sendReset);
+    document.getElementById("btnExport").addEventListener("click", exportCSV);
+    document.getElementById("btnClearLog").addEventListener("click", () => {
+      document.getElementById("logBox").innerHTML = "";
+    });
+
+    drawChart();
+  </script>
+</body>
+</html>
